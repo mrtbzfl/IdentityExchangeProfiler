@@ -6,7 +6,7 @@ pip install git+https://github.com/BartBruininks/IdentityExchangeProfiler
 ```
 
 ## How to use
-Using segmentation data, like the leaflet identity per lipid over time the lipid flip-flop can be profiled in an efficient and precise manner. The two labels of interest should be specified, in the case of lipid flip-flop this would be the label for the outer and inner leaflets.
+Using segmentation data, like the leaflet identity per lipid over time, the lipid flip-flop can be profiled in an efficient and precise manner. The two labels of interest should be specified, in the case of lipid flip-flop this would be the label for the outer and inner leaflets.
 
 ```python3
 import identity_exchange_profiler as iep
