@@ -1,4 +1,5 @@
 # Identity Exchange Profiler (IEP)
+Using segmentation data, like the leaflet identity per lipid over time, the lipid flip-flop can be profiled in an efficient and precise manner. The two labels of interest should be specified, in the case of lipid flip-flop, these would be the labels for the outer and inner leaflets. The segmentation can be obtained using [MDVoxelSegmentation](https://github.com/marrink-lab/MDVoxelSegmentation)).
 
 ## How to install
 ```
@@ -6,8 +7,6 @@ pip install git+https://github.com/BartBruininks/IdentityExchangeProfiler
 ```
 
 ## How to use
-Using segmentation data, like the leaflet identity per lipid over time, the lipid flip-flop can be profiled in an efficient and precise manner. The two labels of interest should be specified, in the case of lipid flip-flop this would be the label for the outer and inner leaflets. The segmentation can be obtained using [MDVoxelSegmentation](https://github.com/marrink-lab/MDVoxelSegmentation)).
-
 ```python3
 import identity_exchange_profiler as iep
 
