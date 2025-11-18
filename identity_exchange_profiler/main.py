@@ -388,152 +388,146 @@ class Profiler:
         print(f"Total flip events detected: {len(self.flips)}")
         print("="*50 + "\n")
 
-    def plot(self, figsize=(15, 6), save=None, show_histogram=True, running_average = 0, time_units = ('mus', 'mus')):
-            """
-            Plot AB/BA flips with dual y-axes and optional histogram:
-            - Left panel: Time series with dual y-axes
-              - Left y-axis: AB and BA (scaled to occupy half vertical range)
-              - Right y-axis: cumulative net AB (full symmetric range)
-            - Right panel (optional): Histogram of flip durations by direction
-            
-            Parameters
-            ----------
-            figsize : tuple
-                Figure size (width, height)
-            save : str, optional
-                Path to save figure
-            show_histogram : bool
-                Whether to show histogram panel (default: True)
-            running_average: int
-                Performs a running average over the AB and BA traces but 
-                leaves the cumsum as is (default: 0)
-            time_units: (str, str)
-                The time units for the traces and the durations
-                ['fs', 'ps', 'ns', 'mus', 'ms', s] (default: mus, mus)
-            """
-            # We can only plot what is computed
-            if not self._computed:
-                self.compute()
+    def plot(self, figsize=(15, 6), save=None, running_average = 0, time_units = ('mus', 'mus')):
+        """
+        Plot AB/BA flips with dual y-axes and histogram:
+        - Left panel: Time series with dual y-axes
+        - Left y-axis: AB and BA (scaled to occupy half vertical range)
+        - Right y-axis: Cumulative net AB (full symmetric range)
+        - Right panel: Histogram of flip durations by direction
         
-            # Auto handle the units
-            time_units = list(time_units)
-            time_scalars = (1*10**3, 1*10**0, 1*10**-3, 1*10**-6, 1*10**-9, 1*10**-12)
-            time_units_str = ('fs', 'ps', 'ns', 'mus', 'ms', 's')
+        Parameters
+        ----------
+        figsize : tuple
+            Figure size (width, height)
+        save : str, optional
+            Path to save figure
+        running_average: int
+            Performs a running average over the AB and BA traces,
+            but leaves the cumsum as is (default: 0)
+        time_units: (str, str)
+            The time units for the traces and the durations
+            ['fs', 'ps', 'ns', 'mus', 'ms', s] (default: mus, mus)
 
-            time_scalar_traces = time_scalars[time_units_str.index(time_units[0])]
-            time_scalar_durations = time_scalars[time_units_str.index(time_units[1])]
-
-            # Nicely format mus
-            for idx in range(len(time_units)):
-                if time_units[idx] == 'mus':
-                    time_unit = 'μs'
-                else:
-                    time_unit = time_units[idx]
-                time_units[idx] = time_unit
-            time_unit_traces = time_units[0]
-            time_unit_durations = time_units[1]
-
-            # Get the flip time trace and average if demanded
-            if running_average:
-                AB = np.convolve(self.AB, np.ones(running_average), 'same') / running_average
-                BA = np.convolve(self.BA, np.ones(running_average), 'same') / running_average
-                #cumsum = np.convolve(self.cumulative_net_AB, np.ones(running_average), 'same') / running_average
-            else:
-                AB, BA = self.AB, self.BA
-            cumsum = self.cumulative_net_AB
-
-            dt = self.dt * time_scalar_traces
-            time_values = np.arange(len(AB)) * dt
-        
-            # Determine scaling
-            max_flip = max(abs(AB).max(), abs(BA).max())
-            max_cumsum = abs(cumsum).max()
-        
-            # Left axis range (AB/BA occupy center half)
-            flip_ylim = max_flip * 1.05
-            # Right axis range (cumsum symmetrical)
-            cumsum_ylim = max_cumsum * 1.05
-        
-            # Create figure with subplots
-            if show_histogram:
-                fig = plt.figure(figsize=figsize)
-                ax1 = plt.subplot(1, 2, 1)
-                ax_hist = plt.subplot(1, 2, 2)
-            else:
-                fig, ax1 = plt.subplots(figsize=figsize)
-            
-            ax2 = ax1.twinx()  # secondary y-axis for cumulative data
+        Returns
+        -------
+        fig  : matplotlib.figure.Figure
+            The plotted figure
+        """
+        # We can only plot what is computed
+        if not self._computed:
+            raise RuntimeError("No results. Run .compute() first.")
     
-            # Create positive y ticks for both flip directions
-            ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda y, _: f"{abs(y):.02f}"))
-        
-            # --- Plot AB and BA on left axis ---
-            ax1.plot(time_values, AB, color='tab:blue', 
-                    label=f'Inst. {self.segment_A}→{self.segment_B} (n={self.cumulative_AB[-1]:.0f})', 
-                    alpha=0.5, linewidth=1)
-            ax1.plot(time_values, -BA, color='tab:orange', 
-                    label=f'Inst. {self.segment_B}→{self.segment_A} (n={abs(self.cumulative_BA[-1]):.0f})', 
-                    alpha=0.5, linewidth=1)
-            ax1.set_ylim(-flip_ylim, flip_ylim)
-            ax1.set_ylabel('Instantaneous flips', fontsize=12)
-            ax1.hlines(0, time_values[0], time_values[-1], linewidth=1, linestyle='--', color='grey')
-        
-            # --- Plot cumulative net AB on right axis ---
-            ax2.plot(time_values, cumsum, color='tab:green', 
-                    label=f'Net {self.segment_A}→{self.segment_B} ({self.cumulative_net_AB[-1]:.0f})', 
-                    alpha=0.8, linewidth=2)
-            ax2.set_ylim(-cumsum_ylim, cumsum_ylim)
-            ax2.set_ylabel('Cumulative net flips', fontsize=12)
-        
-            # --- Formatting ---
-            ax1.set_xlabel(f'Time ({time_unit_traces})', fontsize=12)
-            ax1.set_title('Residue Exchange Between Segments', fontsize=14)
-        
-            # Combine legends from both axes
-            lines_1, labels_1 = ax1.get_legend_handles_labels()
-            lines_2, labels_2 = ax2.get_legend_handles_labels()
-            ax1.legend(lines_1 + lines_2, labels_1 + labels_2, fontsize=10, loc='upper left')
+        # Auto handle the units
+        time_units = list(time_units)
+        time_scalars = (1*10**3, 1*10**0, 1*10**-3, 1*10**-6, 1*10**-9, 1*10**-12)
+        time_units_str = ('fs', 'ps', 'ns', 'mus', 'ms', 's')
+
+        time_scalar_traces = time_scalars[time_units_str.index(time_units[0])]
+        time_scalar_durations = time_scalars[time_units_str.index(time_units[1])]
+
+        # Nicely format mus
+        for idx in range(len(time_units)):
+            if time_units[idx] == 'mus':
+                time_unit = 'μs'
+            else:
+                time_unit = time_units[idx]
+            time_units[idx] = time_unit
+        time_unit_traces = time_units[0]
+        time_unit_durations = time_units[1]
+
+        # Get the flip time trace and average if demanded
+        if running_average:
+            AB = np.convolve(self.AB, np.ones(running_average), 'same') / running_average
+            BA = np.convolve(self.BA, np.ones(running_average), 'same') / running_average
+            #cumsum = np.convolve(self.cumulative_net_AB, np.ones(running_average), 'same') / running_average
+        else:
+            AB, BA = self.AB, self.BA
+        cumsum = self.cumulative_net_AB
+
+        dt = self.dt * time_scalar_traces
+        time_values = np.arange(len(AB)) * dt
     
-            ax1.margins(x=0)
-            ax2.margins(x=0)
-            
-            # --- Plot histogram if requested ---
-            if show_histogram:
-                durations = self.flips[:, 2] * time_scalar_durations * self.dt
-                signs = self.flips[:, 3]
-                
-                # Separate by direction
-                BA_durations = durations[signs > 0]  # Positive sign: B→A
-                AB_durations = durations[signs < 0]  # Negative sign: A→B
-                
-                if len(BA_durations) > 0 or len(AB_durations) > 0:
-                    # Define common bin edges
-                    all_durations = np.concatenate([BA_durations, AB_durations]) if len(BA_durations) > 0 and len(AB_durations) > 0 else (BA_durations if len(BA_durations) > 0 else AB_durations)
-                    bins = np.histogram_bin_edges(all_durations, bins=50)
-                    
-                    # Plot histograms
-                    if len(AB_durations) > 0:
-                        ax_hist.hist(AB_durations, bins=bins, alpha=0.6, 
-                                    label=f'{self.segment_A}→{self.segment_B} (n={len(AB_durations)})',
-                                    color='tab:blue', edgecolor='black', linewidth=0.5)
-                    if len(BA_durations) > 0:
-                        ax_hist.hist(BA_durations, bins=bins, alpha=0.6, 
-                                    label=f'{self.segment_B}→{self.segment_A} (n={len(BA_durations)})',
-                                    color='tab:orange', edgecolor='black', linewidth=0.5)
-                    
-                    ax_hist.set_xlabel(f'Flip duration ({time_unit_durations})', fontsize=12)
-                    ax_hist.set_ylabel('Count', fontsize=12)
-                    ax_hist.set_title('Flip Duration Distribution', fontsize=14)
-                    ax_hist.legend(fontsize=10)
-                    ax_hist.grid(alpha=0.3)
-                else:
-                    ax_hist.text(0.5, 0.5, 'No flips detected', 
-                               ha='center', va='center', fontsize=14, transform=ax_hist.transAxes)
-            
-            plt.tight_layout()
+        # Determine scaling
+        max_flip = max(abs(AB).max(), abs(BA).max())
+        max_cumsum = abs(cumsum).max()
+    
+        # Left axis range (AB/BA occupy center half)
+        flip_ylim = max_flip * 1.05
+        # Right axis range (cumsum symmetrical)
+        cumsum_ylim = max_cumsum * 1.05
+    
+        # Create figure with subplots
+        fig = plt.figure(figsize=figsize)
+        ax1 = plt.subplot(1, 2, 1)
+        ax2 = ax1.twinx()  # secondary y-axis for cumulative data
+        ax_hist = plt.subplot(1, 2, 2)
+
+        # Create positive y ticks for both flip directions
+        ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda y, _: f"{abs(y):.02f}"))
+    
+        # --- Plot AB and BA on left axis ---
+        ax1.plot(time_values, AB, color='tab:blue', 
+                label=f'Inst. {self.segment_A}→{self.segment_B} (n={self.cumulative_AB[-1]:.0f})', 
+                alpha=0.5, linewidth=1)
+        ax1.plot(time_values, -BA, color='tab:orange', 
+                label=f'Inst. {self.segment_B}→{self.segment_A} (n={abs(self.cumulative_BA[-1]):.0f})', 
+                alpha=0.5, linewidth=1)
+        ax1.set_ylim(-flip_ylim, flip_ylim)
+        ax1.set_ylabel('Instantaneous flips', fontsize=12)
+        ax1.hlines(0, time_values[0], time_values[-1], linewidth=1, linestyle='--', color='grey')
+    
+        # --- Plot cumulative net AB on right axis ---
+        ax2.plot(time_values, cumsum, color='tab:green', 
+                label=f'Net {self.segment_A}→{self.segment_B} ({self.cumulative_net_AB[-1]:.0f})', 
+                alpha=0.8, linewidth=2)
+        ax2.set_ylim(-cumsum_ylim, cumsum_ylim)
+        ax2.set_ylabel('Cumulative net flips', fontsize=12)
+    
+        # --- Formatting ---
+        ax1.set_xlabel(f'Time ({time_unit_traces})', fontsize=12)
+        ax1.set_title('Residue Exchange Between Segments', fontsize=14)
+    
+        # Combine legends from both axes
+        lines_1, labels_1 = ax1.get_legend_handles_labels()
+        lines_2, labels_2 = ax2.get_legend_handles_labels()
+        ax1.legend(lines_1 + lines_2, labels_1 + labels_2, fontsize=10, loc='upper left')
+
+        ax1.margins(x=0)
+        ax2.margins(x=0)
         
-            if save:
-                plt.savefig(save, dpi=300, bbox_inches='tight')
-                print(f"Figure saved to {save}")
+        # --- Plot histogram if requested ---
+        durations = self.flips[:, 2] * time_scalar_durations * self.dt
+        signs = self.flips[:, 3]
         
-            plt.show()
+        # Separate by direction
+        BA_durations = durations[signs > 0]  # Positive sign: B→A
+        AB_durations = durations[signs < 0]  # Negative sign: A→B
+        
+        # Define common bin edges
+        all_durations = np.concatenate([BA_durations, AB_durations]) if len(BA_durations) > 0 and len(AB_durations) > 0 else (BA_durations if len(BA_durations) > 0 else AB_durations)
+        bins = np.histogram_bin_edges(all_durations, bins=50)
+        
+        # Plot histograms
+        if len(AB_durations) > 0:
+            ax_hist.hist(AB_durations, bins=bins, alpha=0.6, 
+                        label=f'{self.segment_A}→{self.segment_B} (n={len(AB_durations)})',
+                        color='tab:blue', edgecolor='black', linewidth=0.5)
+        if len(BA_durations) > 0:
+            ax_hist.hist(BA_durations, bins=bins, alpha=0.6, 
+                        label=f'{self.segment_B}→{self.segment_A} (n={len(BA_durations)})',
+                        color='tab:orange', edgecolor='black', linewidth=0.5)
+        
+        ax_hist.set_xlabel(f'Flip duration ({time_unit_durations})', fontsize=12)
+        ax_hist.set_ylabel('Count', fontsize=12)
+        ax_hist.set_title('Flip Duration Distribution', fontsize=14)
+        ax_hist.legend(fontsize=10)
+        ax_hist.grid(alpha=0.3)
+        
+        plt.tight_layout()
+    
+        if save:
+            plt.savefig(save, dpi=300, bbox_inches='tight')
+            print(f"Figure saved to {save}")
+    
+        return fig
