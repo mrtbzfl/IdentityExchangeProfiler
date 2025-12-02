@@ -17,7 +17,7 @@ class Profiler:
     """
     
     def __init__(self, segmentation, segment_A=1, segment_B=2, 
-                 blib_processing=True, dt=1, verbose=True):
+                 mask_valid_frames=True, blib_processing=True, dt=1, verbose=True, ):
         """
         Initialize the analysis.
         
@@ -29,6 +29,8 @@ class Profiler:
             Segment ID for the first segment
         segment_B : int
             Segment ID for the second segment
+        mask_valid_frames : bool
+            Whether to mask frames where either segment A or B is missing (default=True)
         blib_processing : bool
             Whether to apply blib smearing to smooth out temporary segment losses (default=True)
         dt : int
@@ -37,6 +39,7 @@ class Profiler:
         self._segmentation = segmentation
         self._segment_A = segment_A
         self._segment_B = segment_B
+        self._mask_valid_frames = mask_valid_frames
         self._blib_processing = blib_processing
         self._dt = dt
         self._verbose = verbose
@@ -67,6 +70,11 @@ class Profiler:
     def segment_B(self):
         """Input segment label set to B (-1)"""
         return self._segment_B
+    
+    @property
+    def mask_valid_frames(self):
+        """Input for masking valid frames with both segments being present"""
+        return self._mask_valid_frames
 
     @property
     def blib_processing(self):
@@ -193,13 +201,16 @@ class Profiler:
         """
         Set all residues to 0 in frames where either segment A or B
         does not appear at all (to avoid artifacts).
+
+        Parameters
+        ----------
+        segments : np.ndarray
+            Segmentation array with A=1, B=-1, Other=0
         
         Returns
         -------
         segments : np.ndarray
             Masked segments array
-        valid_mask : np.ndarray
-            Boolean array indicating frames where both segments exist
         """
         if self._verbose: print("Masking frames without both segments...")
         # Boolean arrays per frame
@@ -330,7 +341,10 @@ class Profiler:
         segments = self._apply_segment_mask(segments)
 
         # Only process frames where A and B exist
-        segments, valid_mask = self._mask_frames_without_segments(segments)
+        if self.mask_valid_frames:
+            segments, valid_mask = self._mask_frames_without_segments(segments)
+        else :
+            valid_mask = np.ones(segments.shape[0], dtype=bool) 
         self._masked_segmentation = segments.copy()
         self._valid_mask = valid_mask
         
