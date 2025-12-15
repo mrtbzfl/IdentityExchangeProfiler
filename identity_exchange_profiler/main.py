@@ -17,7 +17,8 @@ class Profiler:
     """
     
     def __init__(self, segmentation, segment_A=1, segment_B=2, 
-                 mask_valid_frames=True, blib_processing=True, dt=1, verbose=True, ):
+                 fuzzy_width=0, fuzzy_cutoff=0.5, mask_valid_frames=True, blib_processing=True, 
+                 dt=1, verbose=True):
         """
         Initialize the analysis.
         
@@ -29,16 +30,24 @@ class Profiler:
             Segment ID for the first segment
         segment_B : int
             Segment ID for the second segment
+        fuzzy_width: int
+            The amount of frames to convolve to perform fuzzy logic
+        fizzy_cutoff: float
+            The cutoff value to consider a convolved value to be certain enough to be discretized to {-1, 0, 1}
         mask_valid_frames : bool
             Whether to mask frames where either segment A or B is missing (default=True)
         blib_processing : bool
             Whether to apply blib smearing to smooth out temporary segment losses (default=True)
         dt : int
             The amount of time in ps in between frames (default=1)
+        verbose: bool
+            Be loud and verbal
         """
         self._segmentation = segmentation
         self._segment_A = segment_A
         self._segment_B = segment_B
+        self._fuzzy_width = fuzzy_width
+        self._fuzzy_cutoff = fuzzy_cutoff
         self._mask_valid_frames = mask_valid_frames
         self._blib_processing = blib_processing
         self._dt = dt
@@ -55,6 +64,11 @@ class Profiler:
         self._cumulative_BA = None
         self._cumulative_net_AB = None
         self._computed = False
+    
+    def __str__(self):
+        if self._computed:
+            return f"<IdentityExchangeProfiler with {self.n_frames} frames, {self.n_residues} traces and {len(self.flips)}>"
+        return f"<IdentityExchangeProfiler computed: {self._computed}>"
 
     @staticmethod
     def filter_close_events(data, threshold):
@@ -234,6 +248,39 @@ class Profiler:
         masked[segment_A_mask] = 1
         masked[segment_B_mask] = -1
         return masked
+    
+    def _pre_filter_fuzzy(self, segments, window_size=5, cutoff=0.5):
+        """
+        Pre-filter segmentation data using fuzzy logic (running average + cutoff).
+
+        Parameters
+        ----------
+        segments : np.ndarray
+            Segmentation data with shape (n_frames, n_traces), values in {-1, 0, 1}
+        window_size : int
+            Size of the running average window
+        cutoff : float
+            Cutoff value for determining the state (default: 0.5)
+
+        Returns
+        -------
+        np.ndarray
+            Filtered segmentation data, values in {-1, 0, 1}
+        """
+        # Apply running average to all values in the array
+        window = np.ones(window_size) / window_size
+        smeared = np.zeros_like(segments, dtype=float)
+
+        # Apply convolution along the time axis (axis=0)
+        for i in range(segments.shape[1]):
+            smeared[:, i] = np.convolve(segments[:, i], window, mode='same')
+
+        # Discretize based on cutoff
+        filtered = np.zeros_like(segments, dtype=np.int8)
+        filtered[smeared >= cutoff] = 1
+        filtered[smeared <= -cutoff] = -1
+
+        return filtered
 
     def _mask_frames_without_segments(self, segments):
         """
@@ -377,6 +424,10 @@ class Profiler:
         
         # Apply segment masking (A->1, B->-1, Other->0)
         segments = self._apply_segment_mask(segments)
+
+        # Add fuzzy filtering if request, only accepting a certain unambiguous labeling over time
+        if self._fuzzy_width:
+            segments = self._pre_filter_fuzzy(segments, self._fuzzy_width, self._fuzzy_cutoff)
 
         # Only process frames where A and B exist
         if self.mask_valid_frames:

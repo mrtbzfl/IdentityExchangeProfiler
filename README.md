@@ -15,21 +15,41 @@ import identity_exchange_profiler as iep
 # All attributes and methods have proper documentation
 help(iep.Profiler)
 
-# Load the segmentation data
-segmentation = np.load('clusters.npy')
+# Segments to check flips between
+segment_A = 1
+segment_B = 2
 
-# Set the bare minimum input values
-segment_A = 1 # inner leaflet
-segment_B = 2 # outer leaflet
-dt = 1000.0 # in ps, we save a frame every 1 ns
+# Pre-filtering to reduce noise due to low certainty
+fuzzy_width = 5 # n frames to use for calculating fuzzy label assignment 
+fuzzy_cutoff = .5 # the average relabeled frame annotation {-1, 0, 1} over the fuzzy width to use as threshold to set label
 
-# Prepare the analysis
+# Pre-filtering to only takes frames into account which have both labels present (useful for lipid flip-flop)
+mask_valid_frames = True
+
+# Post-processing to fill in the removed frames due to the fact that not both labels where present (respecting the total sum)
+blib_processing = True
+
+# Time indication
+skip = 1 # Every nth frame to take into account
+dt = 1.0 * skip # is expected to be in ps
+
+# Set the segmentation data to use
+selected_segmentation = np.copy(test_segmentation)
+
+# Verbosity if said to True be loud and noisy
+verbose = True
+
+# Run analysis
 analysis = iep.Profiler(
-    segmentation=segmentation,
+    segmentation=selected_segmentation[::skip],
     segment_A=segment_A,
     segment_B=segment_B,
-    dt = dt,
-    verbose = True,
+    fuzzy_width=fuzzy_width, 
+    fuzzy_cutoff=fuzzy_cutoff,
+    mask_valid_frames=mask_valid_frames,
+    blib_processing=blib_processing,
+    dt=dt,
+    verbose=verbose,
 )
 
 # Perform the actual analysis
