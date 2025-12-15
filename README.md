@@ -12,26 +12,21 @@ import identity_exchange_profiler as iep
 
 # !mdvseg -f your.gro -x your.xtc -fs 0 # Create a clusters.npy for martini lipids
 
-## All attributes and methods have proper documentation
+# All attributes and methods have proper documentation
 help(iep.Profiler)
 
-## Segments to check flips between
+# Segments to check flips between
 segment_A = 1
 segment_B = 2
 
-## Pre-filtering by certainty
-# N frames to use for calculating fuzzy label assignment 
-fuzzy_width = 5 
-# The average relabeled frame annotation {-1, 0, 1} over the
-# fuzzy width to use as threshold to set label
+# Pre-filtering by certainty
+fuzzy_width = 5 # n_frames
 fuzzy_cutoff = .5 
 
-## Pre-filtering for both labels present (useful for lipid flip-flop)
+# Pre-filtering for both labels present (useful for lipid flip-flop)
 mask_valid_frames = True
 
-## Post-processing to fill in
-# Fills in the removed frames due to the fact that not both labels
-# where present (respecting the total sum).
+# Post-processing to fill in
 blib_processing = True
 
 # Time indication
